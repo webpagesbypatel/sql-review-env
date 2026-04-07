@@ -1,3 +1,12 @@
+---
+title: SQL Review Env
+emoji: 🐨
+colorFrom: red
+colorTo: red
+sdk: docker
+pinned: false
+---
+
 # SQL Review Env
 
 An environment where an agent fixes broken SQL queries. The environment grades submissions deterministically by executing the submitted SQL against a fixed in-memory SQLite dataset.
