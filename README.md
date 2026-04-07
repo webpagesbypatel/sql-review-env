@@ -263,6 +263,3 @@ sql-review-env/
 ## 📄 License
 
 MIT License — free to use, modify, and build upon.
-```
-
----
