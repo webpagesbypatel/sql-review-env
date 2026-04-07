@@ -1,27 +1,37 @@
 name: sql-review-env
 version: "1.0.0"
 description: >
-  An environment where an AI agent must fix broken SQL queries.
-  Tasks are graded deterministically by executing against a fixed SQLite dataset.
+  An OpenEnv RL environment where AI agents learn to identify and fix
+  broken SQL queries. Graded deterministically via SQLite execution.
+  Real-world task: SQL debugging is done by millions of developers daily.
 author: Susheel
 tags:
   - openenv
+  - reinforcement-learning
   - sql
   - code-review
   - data-cleaning
+  - agent-evaluation
+
 tasks:
   - id: easy
-    description: Fix basic syntax errors in a simple SELECT query
+    description: Fix keyword typos in a simple SELECT query (SELCT, FORM, WHER)
     difficulty: easy
     max_steps: 10
+    success_threshold: 0.7
+
   - id: medium
-    description: Fix a GROUP BY query with aggregate filtering
+    description: Fix a GROUP BY aggregate query with HAVING clause
     difficulty: medium
     max_steps: 10
+    success_threshold: 0.7
+
   - id: hard
-    description: Fix a JOIN with subquery and ORDER BY clause
+    description: Fix a multi-table JOIN with correlated subquery and ORDER BY
     difficulty: hard
     max_steps: 15
+    success_threshold: 0.7
+
 action_space:
   type: object
   properties:
@@ -30,13 +40,32 @@ action_space:
       description: The corrected SQL query
     explanation:
       type: string
-      description: Optional explanation of the fix
+      description: Optional explanation (not graded)
+
 observation_space:
   type: object
   properties:
-    task_description: {type: string}
-    broken_query: {type: string}
-    feedback: {type: string}
-    score: {type: number}
-    hint: {type: string}
+    task_description:
+      type: string
+      description: What the query should do
+    broken_query:
+      type: string
+      description: The buggy SQL to fix
+    feedback:
+      type: string
+      description: Detailed grader output from last step
+    score:
+      type: number
+      description: Current step score 0.0-1.0
+    hint:
+      type: string
+      description: Keyword hint after 3 failed steps
 
+reward:
+  type: number
+  min: 0.0
+  max: 1.0
+  description: >
+    4-component reward: syntax_valid(0.3) + returns_rows(0.2)
+    + keyword_match(0.3) + correct_columns(0.2).
+    Penalizes repeated identical submissions.
