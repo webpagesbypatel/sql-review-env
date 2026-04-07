@@ -20,6 +20,15 @@ class ActionRequest(BaseModel):
     task_id: str = Field(default="easy", description="Task id: easy|medium|hard")
 
 
+@app.get("/")
+def root():
+    return {
+        "name": "sql-review-env",
+        "status": "ok",
+        "endpoints": ["/health", "/docs", "/reset", "/step", "/state"],
+    }
+
+
 @app.post("/reset")
 def reset(req: dict[str, Any] | None = None):
     task_id = (req or {}).get("task_id", "easy")
