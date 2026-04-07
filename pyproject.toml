@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "sql-review-env"
+version = "1.0.0"
+description = "An OpenEnv environment where an AI agent fixes broken SQL queries"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+  {name = "Susheel", email = "thotasusheelkumar04@gmail.com"}
+]
+keywords = ["openenv", "reinforcement-learning", "sql", "agent", "environment"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic",
+  "openai",
+  "httpx",
+  "python-dotenv",
+]
+
+[project.urls]
+"Homepage" = "https://huggingface.co/spaces/susheelcreates/sql-review-env"
+"Repository" = "https://githubface.co/spaces/susheelcreates/sql-review-env"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["server*"]
