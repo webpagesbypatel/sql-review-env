@@ -1,93 +1,72 @@
-from __future__ import annotations
-
 import asyncio
-import json
 import os
+import json
 from typing import List
-
-import httpx
 from openai import OpenAI
+import httpx
 
-
+# ── MUST use these exact variable names ──────────────────────────
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
-API_KEY = os.environ.get("HF_TOKEN", os.environ.get("OPENAI_API_KEY", ""))
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-ENV_URL = os.environ.get("ENV_URL", "http://localhost:7860")
+HF_TOKEN     = os.environ.get("HF_TOKEN", "")
+MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+ENV_URL      = os.environ.get("ENV_URL", "http://localhost:7860")
 
-BENCHMARK = "sql-review-env"
-MAX_STEPS = int(os.environ.get("MAX_STEPS", "10"))
-MAX_TOTAL_REWARD = float(os.environ.get("MAX_TOTAL_REWARD", "10.0"))
-SUCCESS_THRESHOLD = float(os.environ.get("SUCCESS_THRESHOLD", "0.7"))
+BENCHMARK         = "sql-review-env"
+MAX_STEPS         = 10
+MAX_TOTAL_REWARD  = 10.0
+SUCCESS_THRESHOLD = 0.7
 
-
+# ── EXACT log format — do not change field names ─────────────────
 def log_start(task, env, model):
     print(json.dumps({"type": "START", "task": task, "env": env, "model": model}), flush=True)
 
-
 def log_step(step, action, reward, done, error):
-    print(
-        json.dumps(
-            {
-                "type": "STEP",
-                "step": step,
-                "action": action,
-                "reward": reward,
-                "done": done,
-                "error": error,
-            }
-        ),
-        flush=True,
-    )
-
+    print(json.dumps({"type": "STEP", "step": step, "action": action,
+                      "reward": reward, "done": done, "error": error}), flush=True)
 
 def log_end(success, steps, score, rewards):
-    print(
-        json.dumps({"type": "END", "success": success, "steps": steps, "score": score, "rewards": rewards}),
-        flush=True,
-    )
+    print(json.dumps({"type": "END", "success": success, "steps": steps,
+                      "score": score, "rewards": rewards}), flush=True)
 
-
-def get_model_action(client: OpenAI, obs: dict, last_reward: float, history: List[str]) -> str:
+def get_model_action(client, obs, last_reward, history):
     system = (
-        "You are an expert SQL developer. You will be given a broken SQL query. "
-        "Your job is to fix it and return ONLY the corrected SQL query with no explanation, "
-        "no markdown, no backticks. Just raw SQL."
+        "You are an expert SQL developer. Fix the broken SQL query. "
+        "Return ONLY the corrected SQL — no markdown, no backticks, no explanation."
     )
-    history_text = "\n".join(history[-4:])
     user = (
-        f"Task: {obs.get('task_description', '')}\n\n"
-        f"Broken query:\n{obs.get('broken_query', '')}\n\n"
-        f"Last feedback:\n{obs.get('feedback', '')}\n"
+        f"Task: {obs.get('task_description','')}\n\n"
+        f"Broken query:\n{obs.get('broken_query','')}\n\n"
+        f"Last feedback:\n{obs.get('feedback','')}\n"
         f"Last reward: {last_reward}\n\n"
-        f"Previous attempts:\n{history_text}\n\n"
-        "Return the fixed SQL query only:"
+        f"Previous attempts:\n{chr(10).join(history[-3:])}\n\n"
+        "Return the fixed SQL only:"
     )
-
     resp = client.chat.completions.create(
         model=MODEL_NAME,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+        messages=[{"role": "system", "content": system},
+                  {"role": "user",   "content": user}],
         max_tokens=300,
         temperature=0.1,
     )
-    return (resp.choices[0].message.content or "").strip()
+    return resp.choices[0].message.content.strip()
 
-
-async def run_task(task_id: str) -> float:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    http = httpx.Client(base_url=ENV_URL, timeout=30)
+async def run_task(task_id: str):
+    # ── Use HF_TOKEN as the API key (mandatory per instructions) ──
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    http   = httpx.Client(base_url=ENV_URL, timeout=30)
 
     history: List[str] = []
     rewards: List[float] = []
     steps_taken = 0
+    score   = 0.0
     success = False
 
     log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        resp = http.post("/reset", json={"task_id": task_id})
-        resp.raise_for_status()
+        resp   = http.post("/reset", json={"task_id": task_id})
         result = resp.json()
-        obs = result["observation"]
+        obs    = result["observation"]
         last_reward = 0.0
 
         for step in range(1, MAX_STEPS + 1):
@@ -96,12 +75,13 @@ async def run_task(task_id: str) -> float:
 
             action = get_model_action(client, obs, last_reward, history)
 
-            resp = http.post("/step", json={"query": action, "explanation": "", "task_id": task_id})
-            resp.raise_for_status()
-            result = resp.json()
-            obs = result["observation"]
-            reward = float(result.get("reward", 0.0))
-            done = bool(result.get("done", False))
+            resp   = http.post("/step", json={
+                "task_id": task_id, "query": action, "explanation": ""
+            })
+            result     = resp.json()
+            obs        = result["observation"]
+            reward     = result.get("reward", 0.0)
+            done       = result.get("done", False)
 
             rewards.append(reward)
             steps_taken = step
@@ -113,30 +93,21 @@ async def run_task(task_id: str) -> float:
             if done:
                 break
 
-        score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD else 0.0
-        score = float(min(max(score, 0.0), 1.0))
+        score   = sum(rewards) / MAX_TOTAL_REWARD
+        score   = min(max(score, 0.0), 1.0)
         success = score >= SUCCESS_THRESHOLD
-        return score
 
     except Exception as e:
         log_step(step=steps_taken, action="", reward=0.0, done=True, error=str(e))
-        return 0.0
     finally:
         http.close()
-        # Note: END log must always print
-        # If we returned early, compute score from rewards
-        score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD else 0.0
-        score = float(min(max(score, 0.0), 1.0))
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
+    return score
 
 async def main():
-    print("\n=== SQL Review Env Baseline ===", flush=True)
     for task_id in ["easy", "medium", "hard"]:
-        s = await run_task(task_id)
-        print(f"Task {task_id}: final score = {s:.3f}", flush=True)
-
+        await run_task(task_id)
 
 if __name__ == "__main__":
     asyncio.run(main())
-

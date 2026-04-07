@@ -1,7 +1,12 @@
 
 ---
-**SQL Review Env**
-
+title: SQL Review Env
+emoji: 🐨
+colorFrom: red
+colorTo: red
+sdk: docker
+pinned: false
+tags:
   - openenv
   - reinforcement-learning
   - sql
