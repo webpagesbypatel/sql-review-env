@@ -1,7 +1,7 @@
 
 ---
-title: SQL Review Env
-emoji: 🛢️
+SQL Review Env
+
 colorFrom: blue
 colorTo: green
 sdk: docker
