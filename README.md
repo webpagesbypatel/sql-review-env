@@ -36,3 +36,13 @@ set ENV_URL=http://localhost:7860
 python inference.py
 ```
 
+## Status
+
+- **Environment + API**: implemented in `server/app.py`
+- **Endpoints**:
+  - `GET /health`
+  - `POST /reset`
+  - `POST /step`
+  - `GET /state`
+- **Grading**: deterministic via SQLite in-memory dataset (`server/tasks.py`)
+- **Smoke test**: `easy`, `medium`, `hard` can reach score `1.0` with a correct query
