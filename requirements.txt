@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 pydantic
-httpx
 openai
+httpx
 python-dotenv
+openenv-core>=0.2.0

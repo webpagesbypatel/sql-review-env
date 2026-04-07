@@ -13,11 +13,6 @@ authors = [
   {name = "Susheel", email = "thotasusheelkumar04@gmail.com"}
 ]
 keywords = ["openenv", "reinforcement-learning", "sql", "agent", "environment"]
-classifiers = [
-  "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-]
 dependencies = [
   "fastapi",
   "uvicorn[standard]",
@@ -25,11 +20,11 @@ dependencies = [
   "openai",
   "httpx",
   "python-dotenv",
+  "openenv-core>=0.2.0",
 ]
 
-[project.urls]
-"Homepage" = "https://huggingface.co/spaces/susheelcreates/sql-review-env"
-"Repository" = "https://githubface.co/spaces/susheelcreates/sql-review-env"
+[project.scripts]
+server = "server.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
