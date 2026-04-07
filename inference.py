@@ -154,7 +154,8 @@ async def run_task(task_id: str) -> float:
 
         # Final score clamped to [0, 1]
         score   = sum(rewards) / MAX_TOTAL_REWARD
-        score   = min(max(score, 0.0), 1.0)
+        # Strictly between 0 and 1
+        score   = round(min(max(score, 0.05), 0.95), 4)
         success = score >= SUCCESS_THRESHOLD
 
     except Exception as e:

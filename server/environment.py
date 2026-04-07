@@ -56,6 +56,8 @@ class SQLReviewEnvironment:
             feedback += "\n⚠️ Penalty: identical submission repeated (-0.1)"
 
         reward = float(score + (improvement * 0.1))
+        # Clamp strictly between 0 and 1
+        reward = round(min(max(reward, 0.05), 0.95), 2)
         done = bool(score >= 1.0 or self._state.current_step >= self._state.max_steps)
 
         hint = None
