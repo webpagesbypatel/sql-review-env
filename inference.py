@@ -1,11 +1,11 @@
 import asyncio
 import os
-import json
+import sys
 from typing import List
 from openai import OpenAI
 import httpx
 
-# ── MUST use these exact variable names ──────────────────────────
+# ── Config ────────────────────────────────────────────────────────
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 HF_TOKEN     = os.environ.get("HF_TOKEN", "")
 MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
@@ -16,42 +16,47 @@ MAX_STEPS         = 10
 MAX_TOTAL_REWARD  = 10.0
 SUCCESS_THRESHOLD = 0.7
 
-# ── EXACT log format — do not change field names ─────────────────
+# ── EXACT log format validator expects ───────────────────────────
 def log_start(task, env, model):
-    print(json.dumps({"type": "START", "task": task, "env": env, "model": model}), flush=True)
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+    sys.stdout.flush()
 
 def log_step(step, action, reward, done, error):
-    print(json.dumps({"type": "STEP", "step": step, "action": action,
-                      "reward": reward, "done": done, "error": error}), flush=True)
+    err_str = f" error={error}" if error else ""
+    print(f"[STEP] step={step} action={repr(action)[:80]} reward={reward} done={done}{err_str}", flush=True)
+    sys.stdout.flush()
 
 def log_end(success, steps, score, rewards):
-    print(json.dumps({"type": "END", "success": success, "steps": steps,
-                      "score": score, "rewards": rewards}), flush=True)
+    print(f"[END] success={success} steps={steps} score={score} rewards={rewards}", flush=True)
+    sys.stdout.flush()
 
+# ── LLM call ─────────────────────────────────────────────────────
 def get_model_action(client, obs, last_reward, history):
     system = (
         "You are an expert SQL developer. Fix the broken SQL query. "
         "Return ONLY the corrected SQL — no markdown, no backticks, no explanation."
     )
     user = (
-        f"Task: {obs.get('task_description','')}\n\n"
-        f"Broken query:\n{obs.get('broken_query','')}\n\n"
-        f"Last feedback:\n{obs.get('feedback','')}\n"
+        f"Task: {obs.get('task_description', '')}\n\n"
+        f"Broken query:\n{obs.get('broken_query', '')}\n\n"
+        f"Last feedback:\n{obs.get('feedback', '')}\n"
         f"Last reward: {last_reward}\n\n"
         f"Previous attempts:\n{chr(10).join(history[-3:])}\n\n"
         "Return the fixed SQL only:"
     )
     resp = client.chat.completions.create(
         model=MODEL_NAME,
-        messages=[{"role": "system", "content": system},
-                  {"role": "user",   "content": user}],
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user",   "content": user}
+        ],
         max_tokens=300,
         temperature=0.1,
     )
     return resp.choices[0].message.content.strip()
 
+# ── Run one task ──────────────────────────────────────────────────
 async def run_task(task_id: str):
-    # ── Use HF_TOKEN as the API key (mandatory per instructions) ──
     client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
     http   = httpx.Client(base_url=ENV_URL, timeout=30)
 
@@ -76,12 +81,14 @@ async def run_task(task_id: str):
             action = get_model_action(client, obs, last_reward, history)
 
             resp   = http.post("/step", json={
-                "task_id": task_id, "query": action, "explanation": ""
+                "task_id": task_id,
+                "query": action,
+                "explanation": ""
             })
-            result     = resp.json()
-            obs        = result["observation"]
-            reward     = result.get("reward", 0.0)
-            done       = result.get("done", False)
+            result      = resp.json()
+            obs         = result["observation"]
+            reward      = float(result.get("reward", 0.0))
+            done        = bool(result.get("done", False))
 
             rewards.append(reward)
             steps_taken = step
@@ -98,16 +105,21 @@ async def run_task(task_id: str):
         success = score >= SUCCESS_THRESHOLD
 
     except Exception as e:
+        print(f"[ERROR] task={task_id} error={str(e)}", flush=True)
         log_step(step=steps_taken, action="", reward=0.0, done=True, error=str(e))
+
     finally:
         http.close()
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     return score
 
+
+# ── Main ──────────────────────────────────────────────────────────
 async def main():
     for task_id in ["easy", "medium", "hard"]:
         await run_task(task_id)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
